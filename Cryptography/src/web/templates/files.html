@@ -64,10 +64,13 @@ document.getElementById('encryptForm').addEventListener('submit', async (e) => {
             document.getElementById('encryptResult').innerHTML = `
                 <div class="success-message">
                     <h4>File Encrypted Successfully!</h4>
-                    <p>Encrypted file: ${data.encrypted_file}</p>
-                    <p>File Hash: ${data.metadata.file_hash}</p>
+                    <p><strong>Encrypted file:</strong> ${data.encrypted_file}</p>
+                    <p><strong>File Hash:</strong> ${data.metadata.file_hash}</p>
+                    <p><em>Copy the encrypted file path above to decrypt later</em></p>
                 </div>
             `;
+            // Pre-fill the decrypt form with the encrypted file path
+            document.getElementById('encryptedFilePath').value = data.encrypted_file;
         } else {
             document.getElementById('encryptResult').innerHTML = `
                 <div class="error-message">Error: ${data.error}</div>

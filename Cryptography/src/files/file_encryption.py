@@ -197,7 +197,8 @@ class FileEncryptionModule:
         encrypted_fek, fek_nonce = self.encrypt_fek_with_master_key(fek, master_key)
         
         # Encrypt file
-        nonce = secrets.token_bytes(12)
+        initial_nonce = secrets.token_bytes(12)
+        nonce = initial_nonce
         aesgcm = AESGCM(fek)
         
         encrypted_chunks = []
@@ -217,6 +218,7 @@ class FileEncryptionModule:
                 'master_salt': master_salt.hex(),
                 'encrypted_fek': encrypted_fek.hex(),
                 'fek_nonce': fek_nonce.hex(),
+                'initial_nonce': initial_nonce.hex(),
                 'original_hash': original_hash,
                 'chunk_count': len(encrypted_chunks)
             }
@@ -254,6 +256,10 @@ class FileEncryptionModule:
             Tuple (success, error_message)
         """
         try:
+            # Check if file exists
+            if not os.path.exists(encrypted_file_path):
+                return False, f"Encrypted file not found: {encrypted_file_path}"
+            
             if output_path is None:
                 if encrypted_file_path.endswith('.encrypted'):
                     output_path = encrypted_file_path[:-10]
@@ -262,9 +268,19 @@ class FileEncryptionModule:
             
             with open(encrypted_file_path, 'rb') as f:
                 # Read metadata
-                metadata_len = int.from_bytes(f.read(4), 'big')
+                metadata_len_bytes = f.read(4)
+                if len(metadata_len_bytes) < 4:
+                    return False, "Invalid encrypted file format - missing metadata length"
+                
+                metadata_len = int.from_bytes(metadata_len_bytes, 'big')
                 metadata_json = f.read(metadata_len).decode('utf-8')
                 metadata = json.loads(metadata_json)
+                
+                # Check for required metadata fields
+                required_fields = ['master_salt', 'encrypted_fek', 'fek_nonce', 'original_hash']
+                for field in required_fields:
+                    if field not in metadata:
+                        return False, f"Invalid encrypted file format - missing {field}"
                 
                 # Derive master key
                 master_salt = bytes.fromhex(metadata['master_salt'])
@@ -273,7 +289,10 @@ class FileEncryptionModule:
                 # Decrypt FEK
                 encrypted_fek = bytes.fromhex(metadata['encrypted_fek'])
                 fek_nonce = bytes.fromhex(metadata['fek_nonce'])
-                fek = self.decrypt_fek_with_master_key(encrypted_fek, master_key, fek_nonce)
+                try:
+                    fek = self.decrypt_fek_with_master_key(encrypted_fek, master_key, fek_nonce)
+                except Exception as e:
+                    return False, "Decryption failed - incorrect password or corrupted file"
                 
                 # Verify HMAC
                 encrypted_hash = self.compute_file_hash(encrypted_file_path)
@@ -281,7 +300,10 @@ class FileEncryptionModule:
                 
                 # Read and decrypt chunks
                 aesgcm = AESGCM(fek)
-                nonce = secrets.token_bytes(12)
+                # Use the same initial nonce from encryption
+                if 'initial_nonce' not in metadata:
+                    return False, "File was encrypted with an older version. Please re-encrypt the file."
+                nonce = bytes.fromhex(metadata['initial_nonce'])
                 
                 decrypted_chunks = []
                 chunk_count = metadata.get('chunk_count', 1)

@@ -335,11 +335,20 @@ def decrypt_file():
         return jsonify({'success': False, 'error': 'Invalid session'}), 401
     
     data = request.get_json()
-    encrypted_file_path = data.get('encrypted_file_path', '')
+    if not data:
+        return jsonify({'success': False, 'error': 'Invalid request data'}), 400
+    
+    encrypted_file_path = data.get('encrypted_file_path', '').strip()
     password = data.get('password', '')
     
     if not encrypted_file_path or not password:
-        return jsonify({'success': False, 'error': 'Missing parameters'}), 400
+        return jsonify({'success': False, 'error': 'Missing parameters: encrypted_file_path and password are required'}), 400
+    
+    # Ensure path is relative to project root or handle absolute paths
+    if not os.path.isabs(encrypted_file_path):
+        # If relative path doesn't start with encrypted_files/, add it
+        if not encrypted_file_path.startswith('encrypted_files'):
+            encrypted_file_path = os.path.join('encrypted_files', encrypted_file_path)
     
     try:
         output_path = os.path.join('encrypted_files', 'decrypted_' + os.path.basename(encrypted_file_path).replace('.encrypted', ''))
