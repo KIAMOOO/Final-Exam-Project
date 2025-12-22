@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Secure Messaging - CryptoVault{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1><i class="fas fa-comments"></i> Secure Messaging</h1>
+        <p>End-to-end encrypted communication</p>
+    </div>
+
+    <div class="messaging-container">
+        <div class="messaging-panel">
+            <h3>Key Management</h3>
+            <button onclick="generateKeypair()" class="btn btn-primary">Generate Key Pair</button>
+            <div id="keypairDisplay" class="keypair-display"></div>
+        </div>
+
+        <div class="messaging-panel">
+            <h3>Send Message</h3>
+            <div class="form-group">
+                <label>Recipient Public Key (PEM)</label>
+                <textarea id="recipientPubkey" rows="5" placeholder="Paste recipient's public key"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Your Private Key (PEM)</label>
+                <textarea id="senderPrivkey" rows="5" placeholder="Paste your private key"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Message</label>
+                <textarea id="messageText" rows="4" placeholder="Enter your message"></textarea>
+            </div>
+            <button onclick="sendMessage()" class="btn btn-primary">Encrypt & Send</button>
+            <div id="encryptedMessage" class="encrypted-display"></div>
+        </div>
+
+        <div class="messaging-panel">
+            <h3>Receive Message</h3>
+            <div class="form-group">
+                <label>Encrypted Message (JSON)</label>
+                <textarea id="encryptedData" rows="8" placeholder='{"nonce": "...", "ciphertext": "...", ...}'></textarea>
+            </div>
+            <div class="form-group">
+                <label>Your Private Key (PEM)</label>
+                <textarea id="recipientPrivkey" rows="5" placeholder="Paste your private key"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Sender Public Key (PEM)</label>
+                <textarea id="senderPubkey" rows="5" placeholder="Paste sender's public key"></textarea>
+            </div>
+            <button onclick="receiveMessage()" class="btn btn-primary">Decrypt</button>
+            <div id="decryptedMessage" class="decrypted-display"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function generateKeypair() {
+    try {
+        const response = await fetch('/api/generate_keypair', {method: 'POST'});
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('keypairDisplay').innerHTML = `
+                <h4>Your Key Pair:</h4>
+                <div class="key-section">
+                    <label>Private Key (keep secret!):</label>
+                    <textarea readonly rows="8">${data.private_key}</textarea>
+                </div>
+                <div class="key-section">
+                    <label>Public Key (share this):</label>
+                    <textarea readonly rows="8">${data.public_key}</textarea>
+                </div>
+            `;
+        }
+    } catch (error) {
+        alert('Failed to generate keypair');
+    }
+}
+
+async function sendMessage() {
+    const recipientPubkey = document.getElementById('recipientPubkey').value;
+    const senderPrivkey = document.getElementById('senderPrivkey').value;
+    const message = document.getElementById('messageText').value;
+    
+    if (!recipientPubkey || !senderPrivkey || !message) {
+        alert('Please fill all fields');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/send_message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                recipient_public_key: recipientPubkey,
+                sender_private_key: senderPrivkey,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('encryptedMessage').innerHTML = `
+                <h4>Encrypted Message:</h4>
+                <pre>${JSON.stringify(data.encrypted, null, 2)}</pre>
+            `;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Failed to send message');
+    }
+}
+
+async function receiveMessage() {
+    const encryptedDataText = document.getElementById('encryptedData').value;
+    const recipientPrivkey = document.getElementById('recipientPrivkey').value;
+    const senderPubkey = document.getElementById('senderPubkey').value;
+    
+    if (!encryptedDataText || !recipientPrivkey || !senderPubkey) {
+        alert('Please fill all fields');
+        return;
+    }
+    
+    try {
+        const encryptedData = JSON.parse(encryptedDataText);
+        
+        const response = await fetch('/api/receive_message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                encrypted_data: encryptedData,
+                recipient_private_key: recipientPrivkey,
+                sender_public_key: senderPubkey
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('decryptedMessage').innerHTML = `
+                <h4>Decrypted Message:</h4>
+                <div class="message-content">${data.message}</div>
+            `;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Failed to decrypt message: ' + error.message);
+    }
+}
+</script>
+{% endblock %}
+
