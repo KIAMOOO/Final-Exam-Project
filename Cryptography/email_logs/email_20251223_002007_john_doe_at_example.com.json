@@ -1,0 +1,11 @@
+{
+  "type": "password_reset",
+  "timestamp": "2025-12-23T00:20:07.072337",
+  "to_email": "john_doe@example.com",
+  "username": "john_doe",
+  "subject": "CryptoVault - Password Reset Request",
+  "reset_token": "test_token_abc123xyz",
+  "reset_url": "http://localhost:5000/reset_password/test_token_abc123xyz",
+  "plain_text": "Password Reset Request\n\nHi john_doe,\n\nWe received a request to reset your password for your CryptoVault account.\nClick the link below to create a new password:\n\nhttp://localhost:5000/reset_password/test_token_abc123xyz\n\nThis password reset link will expire in 1 hour.\n\nBest regards,\nCryptoVault Security Team",
+  "html": "<html>\n  <body>\n    <h2>Password Reset Request</h2>\n    <p>Hi john_doe,</p>\n    <p>Click the button below to reset your password:</p>\n    <a href=\"http://localhost:5000/reset_password/test_token_abc123xyz\" style=\"background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;\">Reset Password</a>\n    <p>Or copy this link: http://localhost:5000/reset_password/test_token_abc123xyz</p>\n    <p style=\"color: #999; font-size: 12px;\">Link expires in 1 hour.</p>\n  </body>\n</html>"
+}
