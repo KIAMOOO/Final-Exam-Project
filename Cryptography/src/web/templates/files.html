@@ -100,10 +100,17 @@ document.getElementById('decryptForm').addEventListener('submit', async (e) => {
         const data = await response.json();
         
         if (data.success) {
+            const downloadUrl = data.download_url;
+            // Use the filename provided by the backend (already extracted correctly)
+            const fileName = data.decrypted_filename || data.decrypted_file.split(/[/\\]/).pop();
+            
             document.getElementById('decryptResult').innerHTML = `
                 <div class="success-message">
                     <h4>File Decrypted Successfully!</h4>
                     <p>Decrypted file: ${data.decrypted_file}</p>
+                    <button onclick="downloadDecryptedFile('${downloadUrl}', '${fileName}')" class="btn btn-primary" style="margin-top: 10px;">
+                        <i class="fas fa-download"></i> Download Decrypted File
+                    </button>
                 </div>
             `;
         } else {
@@ -117,6 +124,34 @@ document.getElementById('decryptForm').addEventListener('submit', async (e) => {
         `;
     }
 });
+
+// Function to download decrypted file with proper error handling
+async function downloadDecryptedFile(url, filename) {
+    try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Failed to download file' }));
+            alert('Error: ' + (errorData.error || 'Failed to download file'));
+            return;
+        }
+        
+        // Get the blob data
+        const blob = await response.blob();
+        
+        // Create a temporary download link
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+        alert('Error downloading file: ' + error.message);
+    }
+}
 </script>
 {% endblock %}
 

@@ -7,6 +7,7 @@ import sys
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from urllib.parse import quote, unquote
 import hashlib
 
 # Add parent directory to path for imports
@@ -355,14 +356,105 @@ def decrypt_file():
         success, error = vault.decrypt_file(encrypted_file_path, password, user.username, output_path)
         
         if success:
+            filename = os.path.basename(output_path)  # e.g., "decrypted_esp32.jpg"
             return jsonify({
                 'success': True,
-                'decrypted_file': output_path
+                'decrypted_file': output_path,
+                'decrypted_filename': filename,  # Pass filename separately
+                'download_url': f'/api/download_file?file={quote(filename)}'
             })
         else:
             return jsonify({'success': False, 'error': error}), 400
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/download_file')
+def download_file():
+    """Download decrypted file"""
+    try:
+        token = session.get('token')
+        if not token:
+            return jsonify({'success': False, 'error': 'Not authenticated. Please log in.'}), 401
+        
+        user = vault.auth_login.verify_session(token)
+        if not user:
+            return jsonify({'success': False, 'error': 'Invalid session. Please log in again.'}), 401
+        
+        filename = unquote(request.args.get('file', ''))
+        if not filename:
+            return jsonify({'success': False, 'error': 'No file specified'}), 400
+        
+        # Security: ensure file is in encrypted_files directory and starts with 'decrypted_'
+        if not filename.startswith('decrypted_'):
+            return jsonify({'success': False, 'error': 'Invalid file'}), 400
+        
+        # Try multiple path resolution methods
+        file_path = None
+        
+        # Method 1: Relative to current working directory
+        test_path = os.path.join('encrypted_files', filename)
+        if os.path.exists(test_path):
+            file_path = os.path.abspath(test_path)
+        else:
+            # Method 2: Relative to app.py location
+            app_dir = os.path.dirname(os.path.abspath(__file__))  # src/web/
+            project_root = os.path.dirname(os.path.dirname(app_dir))  # Cryptography/
+            test_path = os.path.join(project_root, 'encrypted_files', filename)
+            if os.path.exists(test_path):
+                file_path = os.path.abspath(test_path)
+        
+        if not file_path or not os.path.exists(file_path):
+            return jsonify({
+                'success': False, 
+                'error': f'File not found: {filename}',
+                'debug': {
+                    'filename': filename,
+                    'test_path_1': os.path.join('encrypted_files', filename),
+                    'exists_1': os.path.exists(os.path.join('encrypted_files', filename)),
+                    'cwd': os.getcwd()
+                }
+            }), 404
+        
+        # Normalize path
+        file_path = os.path.normpath(file_path)
+        
+        # Security: prevent directory traversal
+        if '..' in filename:
+            return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+        
+        # Keep the filename with 'decrypted_' prefix as requested by user
+        # Format: decrypted_[filename].type
+        original_filename = filename  # Keep decrypted_ prefix
+        
+        # Determine MIME type based on extension (use filename with decrypted_ prefix)
+        ext = os.path.splitext(original_filename)[1].lower()
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.pdf': 'application/pdf',
+            '.txt': 'text/plain',
+            '.zip': 'application/zip',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        mimetype = mime_types.get(ext, 'application/octet-stream')
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=original_filename,
+            mimetype=mimetype
+        )
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': f'Error downloading file: {str(e)}',
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 @app.route('/audit')
