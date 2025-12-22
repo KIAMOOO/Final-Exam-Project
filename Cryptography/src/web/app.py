@@ -1,0 +1,354 @@
+"""
+Flask web application for CryptoVault
+"""
+
+import os
+import sys
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
+import hashlib
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.auth.models import db, User
+from src.cryptovault import CryptoVault
+from src.messaging import MessagingModule
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(32)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///cryptovault.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Initialize database
+db.init_app(app)
+
+# Initialize CryptoVault
+vault = CryptoVault()
+messaging = MessagingModule()
+
+# Create upload directory
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs('encrypted_files', exist_ok=True)
+
+
+def create_tables():
+    """Create database tables"""
+    with app.app_context():
+        db.create_all()
+
+# Create tables on startup
+create_tables()
+
+
+@app.route('/')
+def index():
+    """Home page"""
+    return render_template('index.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration"""
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username', '')
+        password = data.get('password', '')
+        email = data.get('email', '')
+        
+        success, error = vault.register(username, password, email)
+        
+        if success:
+            return jsonify({'success': True, 'message': 'Registration successful'})
+        else:
+            return jsonify({'success': False, 'error': error}), 400
+    
+    return render_template('register.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login"""
+    if request.method == 'POST':
+        data = request.get_json()
+        username = data.get('username', '')
+        password = data.get('password', '')
+        totp_code = data.get('totp_code', '')
+        ip_address = request.remote_addr
+        
+        success, error, token = vault.login(username, password, totp_code, ip_address)
+        
+        if success:
+            session['token'] = token
+            session['username'] = username
+            user = User.query.filter_by(username=username).first()
+            session['user_id'] = user.id
+            return jsonify({'success': True, 'token': token})
+        else:
+            return jsonify({'success': False, 'error': error}), 401
+    
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    """Logout user"""
+    token = session.get('token')
+    if token:
+        vault.auth_login.logout(token)
+    session.clear()
+    return redirect(url_for('index'))
+
+
+@app.route('/dashboard')
+def dashboard():
+    """User dashboard"""
+    token = session.get('token')
+    if not token:
+        return redirect(url_for('login'))
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return redirect(url_for('login'))
+    
+    return render_template('dashboard.html', username=user.username)
+
+
+@app.route('/setup_totp', methods=['POST'])
+def setup_totp():
+    """Setup TOTP for user"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    success, error, totp_data = vault.setup_totp(user.username)
+    
+    if success:
+        return jsonify({'success': True, 'data': totp_data})
+    else:
+        return jsonify({'success': False, 'error': error}), 400
+
+
+@app.route('/messaging')
+def messaging_page():
+    """Secure messaging page"""
+    token = session.get('token')
+    if not token:
+        return redirect(url_for('login'))
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return redirect(url_for('login'))
+    
+    return render_template('messaging.html', username=user.username)
+
+
+@app.route('/api/generate_keypair', methods=['POST'])
+def generate_keypair():
+    """Generate messaging key pair"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    private_key, public_key = messaging.generate_keypair()
+    private_pem, public_pem = messaging.serialize_keypair(private_key)
+    
+    return jsonify({
+        'success': True,
+        'private_key': private_pem,
+        'public_key': public_pem
+    })
+
+
+@app.route('/api/send_message', methods=['POST'])
+def send_message():
+    """Send encrypted message"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    recipient_public_key = data.get('recipient_public_key', '')
+    message = data.get('message', '')
+    sender_private_key = data.get('sender_private_key', '')
+    
+    try:
+        encrypted = vault.send_message(recipient_public_key, message, sender_private_key)
+        return jsonify({'success': True, 'encrypted': encrypted})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/receive_message', methods=['POST'])
+def receive_message():
+    """Receive and decrypt message"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    encrypted_data = data.get('encrypted_data', {})
+    recipient_private_key = data.get('recipient_private_key', '')
+    sender_public_key = data.get('sender_public_key', '')
+    
+    try:
+        message = vault.receive_message(encrypted_data, recipient_private_key, sender_public_key)
+        if message:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'error': 'Decryption failed. Check that keys are correct and match the encrypted message.'}), 400
+    except Exception as e:
+        error_msg = str(e)
+        # Provide more helpful error messages
+        if 'Could not deserialize' in error_msg or 'unsupported' in error_msg.lower():
+            return jsonify({'success': False, 'error': 'Invalid key format. Make sure keys are in PEM format.'}), 400
+        elif 'Decryption error' in error_msg:
+            return jsonify({'success': False, 'error': error_msg}), 400
+        else:
+            return jsonify({'success': False, 'error': f'Decryption failed: {error_msg}'}), 400
+
+
+@app.route('/files')
+def files_page():
+    """File encryption page"""
+    token = session.get('token')
+    if not token:
+        return redirect(url_for('login'))
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return redirect(url_for('login'))
+    
+    return render_template('files.html', username=user.username)
+
+
+@app.route('/api/encrypt_file', methods=['POST'])
+def encrypt_file():
+    """Encrypt uploaded file"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    password = request.form.get('password', '')
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    
+    if not password:
+        return jsonify({'success': False, 'error': 'Password required'}), 400
+    
+    filename = secure_filename(file.filename)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
+    
+    try:
+        output_path = os.path.join('encrypted_files', filename + '.encrypted')
+        success, error, metadata = vault.encrypt_file(file_path, password, user.username, output_path)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'encrypted_file': output_path,
+                'metadata': metadata
+            })
+        else:
+            return jsonify({'success': False, 'error': error}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+@app.route('/api/decrypt_file', methods=['POST'])
+def decrypt_file():
+    """Decrypt file"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    data = request.get_json()
+    encrypted_file_path = data.get('encrypted_file_path', '')
+    password = data.get('password', '')
+    
+    if not encrypted_file_path or not password:
+        return jsonify({'success': False, 'error': 'Missing parameters'}), 400
+    
+    try:
+        output_path = os.path.join('encrypted_files', 'decrypted_' + os.path.basename(encrypted_file_path).replace('.encrypted', ''))
+        success, error = vault.decrypt_file(encrypted_file_path, password, user.username, output_path)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'decrypted_file': output_path
+            })
+        else:
+            return jsonify({'success': False, 'error': error}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/audit')
+def audit_page():
+    """Audit trail page"""
+    token = session.get('token')
+    if not token:
+        return redirect(url_for('login'))
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return redirect(url_for('login'))
+    
+    return render_template('audit.html', username=user.username)
+
+
+@app.route('/api/audit_trail')
+def get_audit_trail():
+    """Get audit trail from blockchain"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    chain = vault.get_audit_trail()
+    return jsonify({'success': True, 'chain': chain})
+
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+

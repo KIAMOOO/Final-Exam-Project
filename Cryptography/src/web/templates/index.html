@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}CryptoVault Suite - Secure Communications & Encryption{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">CryptoVault Suite</h1>
+            <p class="hero-subtitle">Comprehensive cryptographic toolkit for secure communications, file encryption, and immutable audit trails</p>
+            <div class="hero-buttons">
+                <a href="{{ url_for('register') }}" class="btn btn-primary btn-large">Get Started</a>
+                <a href="{{ url_for('login') }}" class="btn btn-secondary btn-large">Sign In</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="features">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">Features</h2>
+            <p class="section-subtitle">Enterprise-grade security features built for modern applications</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <div class="feature-icon">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                </div>
+                <h3>Secure Authentication</h3>
+                <p>Multi-factor authentication with TOTP, secure password hashing, and session management</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <div class="feature-icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                </div>
+                <h3>End-to-End Encryption</h3>
+                <p>Secure messaging with ECDH key exchange, AES-256-GCM encryption, and digital signatures</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <div class="feature-icon">
+                        <i class="fas fa-file-shield"></i>
+                    </div>
+                </div>
+                <h3>File Encryption</h3>
+                <p>Protect your files with AES-256-GCM encryption and PBKDF2 key derivation</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon-wrapper">
+                    <div class="feature-icon">
+                        <i class="fas fa-link"></i>
+                    </div>
+                </div>
+                <h3>Blockchain Audit Trail</h3>
+                <p>Immutable logging of all security events with Merkle tree verification</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
