@@ -1,4 +1,0 @@
-"""
-Web interface for CryptoVault
-"""
-
