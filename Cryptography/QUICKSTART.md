@@ -29,7 +29,7 @@
 ### 🔐 Authentication
 - **Registration**: Secure password hashing with Argon2id
 - **Login**: Session-based authentication with rate limiting
-- **TOTP**: Two-factor authentication with QR codes
+- **TOTP**: Two-factor authentication with QR codes and keys
 - **Account Lockout**: Protection against brute force attacks
 
 ### 💬 Secure Messaging
@@ -88,4 +88,5 @@ chain = vault.get_audit_trail()
 - Check `README.md` for detailed documentation
 - Review `INSTALL.md` for installation troubleshooting
 - Examine code comments for implementation details
+
 
