@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Trail - CryptoVault{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1><i class="fas fa-link"></i> Blockchain Audit Trail</h1>
+        <p>Immutable log of all security events</p>
+    </div>
+
+    <div class="audit-controls">
+        <button onclick="loadAuditTrail()" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Refresh
+        </button>
+        <button onclick="verifyChain()" class="btn btn-secondary">
+            <i class="fas fa-check-circle"></i> Verify Chain Integrity
+        </button>
+    </div>
+
+    <div id="auditTrail" class="audit-trail">
+        <div class="loading">Loading audit trail...</div>
+    </div>
+</div>
+
+<script>
+async function loadAuditTrail() {
+    try {
+        const response = await fetch('/api/audit_trail');
+        const data = await response.json();
+        
+        if (data.success) {
+            const trailDiv = document.getElementById('auditTrail');
+            
+            if (data.chain.length === 0) {
+                trailDiv.innerHTML = '<p>No blocks in chain yet.</p>';
+                return;
+            }
+            
+            let html = '';
+            data.chain.forEach((block, index) => {
+                html += `
+                    <div class="block-card">
+                        <div class="block-header">
+                            <h3>Block #${block.index}</h3>
+                            <span class="block-hash">${block.hash.substring(0, 16)}...</span>
+                        </div>
+                        <div class="block-details">
+                            <p><strong>Previous Hash:</strong> ${block.previous_hash.substring(0, 16)}...</p>
+                            <p><strong>Merkle Root:</strong> ${block.merkle_root.substring(0, 16)}...</p>
+                            <p><strong>Nonce:</strong> ${block.nonce}</p>
+                            <p><strong>Transactions:</strong> ${block.transactions.length}</p>
+                        </div>
+                        <div class="transactions">
+                            ${block.transactions.map(tx => `
+                                <div class="transaction">
+                                    <strong>${tx.type}</strong>
+                                    <pre>${JSON.stringify(tx.data, null, 2)}</pre>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            trailDiv.innerHTML = html;
+        }
+    } catch (error) {
+        document.getElementById('auditTrail').innerHTML = 
+            '<div class="error-message">Failed to load audit trail</div>';
+    }
+}
+
+function verifyChain() {
+    alert('Chain verification: This would verify the entire blockchain integrity. Implementation in backend.');
+}
+
+// Load on page load
+loadAuditTrail();
+</script>
+{% endblock %}
+
