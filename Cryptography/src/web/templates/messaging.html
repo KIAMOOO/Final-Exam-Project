@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Secure Messaging - CryptoVault{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1><i class="fas fa-comments"></i> Secure Messaging</h1>
+        <p>End-to-end encrypted communication with ECDH key exchange and AES-256-GCM encryption</p>
+    </div>
+
+    <div class="messaging-container">
+        <div class="messaging-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-key"></i> Key Management</h3>
+                <p class="panel-description">Generate your encryption key pair</p>
+            </div>
+            <button onclick="generateKeypair()" class="btn btn-primary btn-block">
+                <i class="fas fa-plus-circle"></i> Generate Key Pair
+            </button>
+            <div id="keypairDisplay" class="keypair-display"></div>
+            <div id="keypairError" class="error-message" style="display: none;"></div>
+        </div>
+
+        <div class="messaging-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-paper-plane"></i> Send Message</h3>
+                <p class="panel-description">Encrypt and prepare message for sending</p>
+                <button onclick="useSelfTest()" class="btn btn-secondary" style="margin-top: 0.5rem; font-size: 0.85rem; padding: 0.5rem 1rem;">
+                    <i class="fas fa-flask"></i> Test: Send to Yourself
+                </button>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-user-check"></i> Recipient Public Key (PEM)</label>
+                <textarea id="recipientPubkey" rows="5" placeholder="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----" class="key-textarea"></textarea>
+                <small>Paste the recipient's public key</small>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Your Private Key (PEM)</label>
+                <textarea id="senderPrivkey" rows="5" placeholder="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----" class="key-textarea"></textarea>
+                <small>Your private key from Key Management</small>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-envelope"></i> Message</label>
+                <textarea id="messageText" rows="4" placeholder="Enter your message here..."></textarea>
+            </div>
+            <button onclick="sendMessage()" class="btn btn-primary btn-block">
+                <i class="fas fa-shield-alt"></i> Encrypt & Send
+            </button>
+            <div id="sendError" class="error-message" style="display: none;"></div>
+            <div id="encryptedMessage" class="encrypted-display"></div>
+        </div>
+
+        <div class="messaging-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-inbox"></i> Receive Message</h3>
+                <p class="panel-description">Decrypt received encrypted message</p>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-file-code"></i> Encrypted Message (JSON)</label>
+                <textarea id="encryptedData" rows="8" placeholder='{"nonce": "...", "ciphertext": "...", "auth_tag": "...", "ephemeral_pubkey": "...", "signature": "..."}'></textarea>
+                <small>Paste the encrypted message JSON</small>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Your Private Key (PEM)</label>
+                <textarea id="recipientPrivkey" rows="5" placeholder="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----" class="key-textarea"></textarea>
+                <small>Your private key to decrypt the message</small>
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-user-shield"></i> Sender Public Key (PEM)</label>
+                <textarea id="senderPubkey" rows="5" placeholder="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----" class="key-textarea"></textarea>
+                <small>Sender's public key for verification</small>
+            </div>
+            <button onclick="receiveMessage()" class="btn btn-primary btn-block">
+                <i class="fas fa-unlock"></i> Decrypt Message
+            </button>
+            <div id="receiveError" class="error-message" style="display: none;"></div>
+            <div id="decryptedMessage" class="decrypted-display"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showError(elementId, message) {
+    const errorDiv = document.getElementById(elementId);
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 5000);
+}
+
+function hideError(elementId) {
+    document.getElementById(elementId).style.display = 'none';
+}
+
+function copyToClipboard(text, elementId) {
+    navigator.clipboard.writeText(text).then(() => {
+        if (typeof showNotification === 'function') {
+            showNotification('Copied to clipboard!', 'success');
+        } else {
+            alert('Copied to clipboard!');
+        }
+    }).catch(() => {
+        showError(elementId, 'Failed to copy');
+    });
+}
+
+async function generateKeypair() {
+    hideError('keypairError');
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    
+    try {
+        const response = await fetch('/api/generate_keypair', {method: 'POST'});
+        const data = await response.json();
+        
+        if (data.success) {
+            const privateKeyEscaped = data.private_key.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+            const publicKeyEscaped = data.public_key.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+            const privateKeyAttrEscaped = data.private_key.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+            
+            document.getElementById('keypairDisplay').innerHTML = `
+                <div class="keypair-result">
+                    <div class="key-section">
+                        <div class="key-header">
+                            <label><i class="fas fa-lock"></i> Private Key (keep secret!):</label>
+                            <button onclick='copyToClipboard(\`${privateKeyEscaped}\`, "keypairError")' class="btn-copy" title="Copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        <textarea readonly rows="8" class="key-textarea">${data.private_key}</textarea>
+                        <small class="key-warning"><i class="fas fa-exclamation-triangle"></i> Never share this key!</small>
+                    </div>
+                    <div class="key-section">
+                        <div class="key-header">
+                            <label><i class="fas fa-share-alt"></i> Public Key (share this):</label>
+                            <button onclick='copyToClipboard(\`${publicKeyEscaped}\`, "keypairError")' class="btn-copy" title="Copy">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        <textarea readonly rows="8" class="key-textarea">${data.public_key}</textarea>
+                    </div>
+                    <div class="key-actions">
+                        <button onclick='fillKeysForSending(\`${privateKeyAttrEscaped}\`)' class="btn btn-secondary">
+                            <i class="fas fa-arrow-right"></i> Use for Sending
+                        </button>
+                        <button onclick='fillKeysForReceiving(\`${privateKeyAttrEscaped}\`)' class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Use for Receiving
+                        </button>
+                    </div>
+                </div>
+            `;
+            if (typeof showNotification === 'function') {
+                showNotification('Key pair generated successfully!', 'success');
+            }
+        } else {
+            showError('keypairError', data.error || 'Failed to generate key pair');
+        }
+    } catch (error) {
+        showError('keypairError', 'Failed to generate key pair: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+function fillKeysForSending(privateKey) {
+    // Decode the escaped newlines
+    const decodedKey = privateKey.replace(/\\n/g, '\n');
+    document.getElementById('senderPrivkey').value = decodedKey;
+    if (typeof showNotification === 'function') {
+        showNotification('Private key filled in Send Message section', 'info');
+    }
+}
+
+function fillKeysForReceiving(privateKey) {
+    // Decode the escaped newlines
+    const decodedKey = privateKey.replace(/\\n/g, '\n');
+    document.getElementById('recipientPrivkey').value = decodedKey;
+    if (typeof showNotification === 'function') {
+        showNotification('Private key filled in Receive Message section', 'info');
+    }
+}
+
+async function sendMessage() {
+    hideError('sendError');
+    const recipientPubkey = document.getElementById('recipientPubkey').value.trim();
+    const senderPrivkey = document.getElementById('senderPrivkey').value.trim();
+    const message = document.getElementById('messageText').value.trim();
+    
+    if (!recipientPubkey || !senderPrivkey || !message) {
+        showError('sendError', 'Please fill all fields');
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encrypting...';
+    
+    try {
+        const response = await fetch('/api/send_message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                recipient_public_key: recipientPubkey,
+                sender_private_key: senderPrivkey,
+                message: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const encryptedJson = JSON.stringify(data.encrypted, null, 2);
+            const encryptedJsonEscaped = encryptedJson.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+            
+            document.getElementById('encryptedMessage').innerHTML = `
+                <div class="message-result">
+                    <div class="result-header">
+                        <h4><i class="fas fa-check-circle"></i> Message Encrypted Successfully!</h4>
+                        <button onclick='copyToClipboard(\`${encryptedJsonEscaped}\`, "sendError")' class="btn-copy" title="Copy JSON">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <pre class="encrypted-json">${escapeHtml(encryptedJson)}</pre>
+                    <div class="result-info">
+                        <p><i class="fas fa-info-circle"></i> Share this encrypted message JSON with the recipient</p>
+                    </div>
+                </div>
+            `;
+            if (typeof showNotification === 'function') {
+                showNotification('Message encrypted successfully!', 'success');
+            }
+            // Auto-fill the encrypted data in receive section
+            document.getElementById('encryptedData').value = encryptedJson;
+        } else {
+            showError('sendError', data.error || 'Failed to encrypt message');
+        }
+    } catch (error) {
+        showError('sendError', 'Failed to send message: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+async function receiveMessage() {
+    hideError('receiveError');
+    const encryptedDataText = document.getElementById('encryptedData').value.trim();
+    const recipientPrivkey = document.getElementById('recipientPrivkey').value.trim();
+    const senderPubkey = document.getElementById('senderPubkey').value.trim();
+    
+    if (!encryptedDataText || !recipientPrivkey || !senderPubkey) {
+        showError('receiveError', 'Please fill all fields');
+        return;
+    }
+    
+    let encryptedData;
+    try {
+        encryptedData = JSON.parse(encryptedDataText);
+    } catch (error) {
+        showError('receiveError', 'Invalid JSON format: ' + error.message);
+        return;
+    }
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Decrypting...';
+    
+    try {
+        const response = await fetch('/api/receive_message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                encrypted_data: encryptedData,
+                recipient_private_key: recipientPrivkey,
+                sender_public_key: senderPubkey
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('decryptedMessage').innerHTML = `
+                <div class="message-result">
+                    <div class="result-header">
+                        <h4><i class="fas fa-check-circle"></i> Message Decrypted Successfully!</h4>
+                        <button onclick="copyToClipboard('${data.message.replace(/'/g, "\\'")}', 'receiveError')" class="btn-copy" title="Copy message">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <div class="message-content">${escapeHtml(data.message)}</div>
+                    <div class="result-info">
+                        <p><i class="fas fa-shield-alt"></i> Message verified and decrypted</p>
+                    </div>
+                </div>
+            `;
+            if (typeof showNotification === 'function') {
+                showNotification('Message decrypted successfully!', 'success');
+            }
+        } else {
+            showError('receiveError', data.error || 'Failed to decrypt message');
+        }
+    } catch (error) {
+        showError('receiveError', 'Failed to decrypt message: ' + error.message);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+// Function to test messaging by sending to yourself
+function useSelfTest() {
+    const keypairDisplay = document.getElementById('keypairDisplay');
+    const privateKeyArea = keypairDisplay.querySelector('textarea');
+    const publicKeyArea = keypairDisplay.querySelectorAll('textarea')[1];
+    
+    if (!privateKeyArea || !publicKeyArea || !privateKeyArea.value || !publicKeyArea.value) {
+        alert('Please generate a key pair first!');
+        return;
+    }
+    
+    // Fill in Send Message section with your own keys
+    document.getElementById('senderPrivkey').value = privateKeyArea.value;
+    document.getElementById('recipientPubkey').value = publicKeyArea.value;
+    
+    // Fill in Receive Message section with your own keys
+    document.getElementById('recipientPrivkey').value = privateKeyArea.value;
+    document.getElementById('senderPubkey').value = publicKeyArea.value;
+    
+    if (typeof showNotification === 'function') {
+        showNotification('Keys filled for self-testing! Now send a message and decrypt it.', 'info');
+    } else {
+        alert('Keys filled for self-testing! Now send a message and decrypt it.');
+    }
+}
+</script>
+{% endblock %}
+
