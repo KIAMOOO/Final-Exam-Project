@@ -291,16 +291,9 @@ cryptovault/
 └── README.md
 ```
 
-## Requirements
-
-- Python 3.8+
-- See `requirements.txt` for full dependency list
-
 ## License
 
 MIT License
 
-## Contributing
 
-This is an educational project demonstrating cryptographic concepts and implementations. All security-relevant operations use established libraries (cryptography, argon2, pyotp) for production-quality security, while core algorithms are implemented from scratch for educational purposes.
 
