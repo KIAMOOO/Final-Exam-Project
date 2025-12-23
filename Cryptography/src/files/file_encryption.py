@@ -196,11 +196,11 @@ class FileEncryptionModule:
         # Encrypt FEK with master key
         encrypted_fek, fek_nonce = self.encrypt_fek_with_master_key(fek, master_key)
         
-        # Encrypt file
+        # Encrypt file data in streaming mode and collect encrypted chunks
         initial_nonce = secrets.token_bytes(12)
         nonce = initial_nonce
         aesgcm = AESGCM(fek)
-        
+
         encrypted_chunks = []
         with open(file_path, 'rb') as f:
             while chunk := f.read(self.chunk_size):
@@ -210,30 +210,37 @@ class FileEncryptionModule:
                 nonce = int.from_bytes(nonce, 'big')
                 nonce = (nonce + 1) % (2**96)
                 nonce = nonce.to_bytes(12, 'big')
-        
-        # Write encrypted file
+
+        # Compute SHA-256 over all encrypted chunks (ciphertext + tags)
+        # This value is used for HMAC-based authenticity and stored in metadata.
+        enc_sha = hashlib.sha256()
+        for chunk in encrypted_chunks:
+            enc_sha.update(chunk)
+        encrypted_hash = enc_sha.hexdigest()
+
+        # Compute HMAC-SHA256 over encrypted_hash using the master key
+        hmac_value = self.compute_hmac(encrypted_hash.encode(), master_key)
+
+        # Write encrypted file with metadata header (including HMAC)
         with open(output_path, 'wb') as f:
-            # Write metadata header
             metadata = {
                 'master_salt': master_salt.hex(),
                 'encrypted_fek': encrypted_fek.hex(),
                 'fek_nonce': fek_nonce.hex(),
                 'initial_nonce': initial_nonce.hex(),
                 'original_hash': original_hash,
-                'chunk_count': len(encrypted_chunks)
+                'chunk_count': len(encrypted_chunks),
+                'encrypted_hash': encrypted_hash,
+                'hmac': hmac_value.hex(),
             }
             metadata_json = json.dumps(metadata).encode('utf-8')
             f.write(len(metadata_json).to_bytes(4, 'big'))
             f.write(metadata_json)
-            
+
             # Write encrypted chunks
             for chunk in encrypted_chunks:
                 f.write(chunk)
-        
-        # Compute HMAC of encrypted file
-        encrypted_hash = self.compute_file_hash(output_path)
-        hmac_value = self.compute_hmac(encrypted_hash.encode(), master_key)
-        
+
         return {
             'encrypted_file': output_path,
             'file_hash': original_hash,
@@ -276,7 +283,7 @@ class FileEncryptionModule:
                 metadata_json = f.read(metadata_len).decode('utf-8')
                 metadata = json.loads(metadata_json)
                 
-                # Check for required metadata fields
+                # Check for required metadata fields (older files may not have all of them)
                 required_fields = ['master_salt', 'encrypted_fek', 'fek_nonce', 'original_hash']
                 for field in required_fields:
                     if field not in metadata:
@@ -293,11 +300,20 @@ class FileEncryptionModule:
                     fek = self.decrypt_fek_with_master_key(encrypted_fek, master_key, fek_nonce)
                 except Exception as e:
                     return False, "Decryption failed - incorrect password or corrupted file"
-                
-                # Verify HMAC
-                encrypted_hash = self.compute_file_hash(encrypted_file_path)
-                expected_hmac = self.compute_hmac(encrypted_hash.encode(), master_key)
-                
+
+                # HMAC-based authenticity verification (if HMAC is present in metadata)
+                stored_encrypted_hash = metadata.get('encrypted_hash')
+                stored_hmac_hex = metadata.get('hmac')
+                verify_hmac = bool(stored_encrypted_hash and stored_hmac_hex)
+                if verify_hmac:
+                    try:
+                        stored_hmac = bytes.fromhex(stored_hmac_hex)
+                    except ValueError:
+                        return False, "Invalid HMAC value in encrypted file metadata"
+
+                # Prepare for decrypting chunks and optionally recomputing encrypted_hash
+                enc_sha = hashlib.sha256() if verify_hmac else None
+
                 # Read and decrypt chunks
                 aesgcm = AESGCM(fek)
                 # Use the same initial nonce from encryption
@@ -313,23 +329,36 @@ class FileEncryptionModule:
                     chunk = f.read(self.chunk_size + 16)  # +16 for auth tag
                     if not chunk:
                         break
-                    
+
+                    # Update encrypted hash computation for HMAC if enabled
+                    if enc_sha is not None:
+                        enc_sha.update(chunk)
+
                     try:
                         decrypted_chunk = aesgcm.decrypt(nonce, chunk, None)
                         decrypted_chunks.append(decrypted_chunk)
-                        
+
                         # Increment nonce for next chunk
                         nonce = int.from_bytes(nonce, 'big')
                         nonce = (nonce + 1) % (2**96)
                         nonce = nonce.to_bytes(12, 'big')
                     except Exception:
                         return False, "Decryption failed - file may be corrupted or password incorrect"
-                
+
                 # Write decrypted file
                 with open(output_path, 'wb') as out_f:
                     for chunk in decrypted_chunks:
                         out_f.write(chunk)
-                
+
+                # If HMAC metadata is present, verify authenticity of encrypted data
+                if enc_sha is not None:
+                    encrypted_hash = enc_sha.hexdigest()
+                    expected_hmac = self.compute_hmac(encrypted_hash.encode(), master_key)
+                    if not hmac.compare_digest(expected_hmac, stored_hmac):
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+                        return False, "File authenticity check failed - HMAC mismatch (file may be corrupted or tampered with)"
+
                 # Verify original hash
                 decrypted_hash = self.compute_file_hash(output_path)
                 if decrypted_hash != metadata['original_hash']:
