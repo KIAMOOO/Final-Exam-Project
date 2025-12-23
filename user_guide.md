@@ -14,13 +14,24 @@ pip install -r requirements.txt
 
 2. **Configure environment (optional but recommended)**
 
-- Create a `.env` file with values like:
+- Configure Mailjet SMTP for password reset
 
-```text
-MAILJET_API_KEY=your_api_key
-MAILJET_API_SECRET=your_secret
-FROM_EMAIL=you@example.com
-FROM_NAME=CryptoVault
+Windows:
+```bash
+$env:SMTP_SERVER = "in-v3.mailjet.com"
+$env:SMTP_PORT = "587"
+$env:SMTP_USERNAME = "3c024e09bddbff15041d632939f21774"
+$env:SMTP_PASSWORD = "b1738fe033fb4e369b8b13f0ebe26e05"
+$env:FROM_EMAIL = "Ocean.spongeh@gmail.com"
+```
+macOS / Linux:
+```bash
+export SMTP_SERVER="in-v3.mailjet.com"
+export SMTP_PORT="587"
+export SMTP_USERNAME="your_mailjet_smtp_username"
+export SMTP_PASSWORD="your_mailjet_smtp_password"
+export FROM_EMAIL="you@example.com"
+
 ```
 
 3. **Run the web app**
