@@ -236,6 +236,12 @@ def confirm_totp():
     if not user:
         return jsonify({'success': False, 'error': 'Invalid session'}), 401
 
+    # Reload user from DB to ensure we have latest fields (fresh totp_secret)
+    from src.auth.models import User as UserModel
+    user = UserModel.query.get(user.id)
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+
     data = request.get_json() or {}
     code = (data.get('code') or '').strip()
     if not code:

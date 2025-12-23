@@ -148,7 +148,8 @@ class Registration:
                 username=username,
                 password_hash=password_hash,
                 salt=salt,
-                email=email
+                email=email,
+                totp_enabled=False  # Explicitly set to False for new users
             )
             
             db.session.add(user)

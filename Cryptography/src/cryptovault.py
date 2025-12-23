@@ -101,6 +101,13 @@ class CryptoVault:
             })
             return False, error, None
         
+        # Refetch user from database to get latest TOTP status
+        # This ensures we have the most up-to-date totp_enabled value
+        # Important: After login commits, we need fresh data to check TOTP status
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return False, "User not found", None
+        
         # Verify TOTP if enabled
         if user.totp_enabled:
             if not totp_code:

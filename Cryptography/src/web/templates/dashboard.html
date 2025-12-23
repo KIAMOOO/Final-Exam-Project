@@ -88,7 +88,25 @@ async function setupTOTP() {
                     ${data.data.backup_codes.map(code => `<li>${code}</li>`).join('')}
                 </ul>
                 <p><small>Save these backup codes in a secure location!</small></p>
+                
+                <hr style="margin: 1.5rem 0; border-color: rgba(255,255,255,0.1);">
+                
+                <p><strong>Enter the 6-digit code from your authenticator app to enable TOTP:</strong></p>
+                <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+                    <input type="text" id="totpCodeInput" placeholder="000000" maxlength="6" style="padding:0.5rem;border-radius:6px;background:#0b1220;border:1px solid rgba(255,255,255,0.1);color:white;font-size:1.2rem;letter-spacing:0.2rem;text-align:center;width:150px;" autocomplete="off">
+                    <button id="confirmTOTPBtn" class="btn btn-primary">Confirm & Enable</button>
+                </div>
+                <div id="totpError" style="color:#ff4444;margin-top:0.5rem;display:none;"></div>
+                <div id="totpSuccess" style="color:#44ff44;margin-top:0.5rem;display:none;"></div>
             `;
+            
+            // Add event listeners for confirmation
+            document.getElementById('confirmTOTPBtn').addEventListener('click', confirmTOTP);
+            document.getElementById('totpCodeInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    confirmTOTP();
+                }
+            });
 
             
             
@@ -99,9 +117,70 @@ async function setupTOTP() {
     }
 }
 
+async function confirmTOTP() {
+    const codeInput = document.getElementById('totpCodeInput');
+    const errorDiv = document.getElementById('totpError');
+    const successDiv = document.getElementById('totpSuccess');
+    const confirmBtn = document.getElementById('confirmTOTPBtn');
+    
+    const code = codeInput.value.trim();
+    
+    // Hide previous messages
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+    
+    if (!code || code.length !== 6) {
+        errorDiv.textContent = 'Please enter a valid 6-digit TOTP code';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Disable button during request
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Verifying...';
+    
+    try {
+        const response = await fetch('/confirm_totp', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code: code})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            successDiv.textContent = 'TOTP enabled successfully! You will be asked for a TOTP code on your next login.';
+            successDiv.style.display = 'block';
+            codeInput.disabled = true;
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Enabled';
+            
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                document.getElementById('totpModal').style.display = 'none';
+                // Reload page to update UI
+                window.location.reload();
+            }, 2000);
+        } else {
+            errorDiv.textContent = data.error || 'Invalid TOTP code. Please try again.';
+            errorDiv.style.display = 'block';
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Confirm & Enable';
+            codeInput.value = '';
+            codeInput.focus();
+        }
+    } catch (error) {
+        errorDiv.textContent = 'Failed to confirm TOTP. Please try again.';
+        errorDiv.style.display = 'block';
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirm & Enable';
+    }
+}
+
 document.querySelector('.close').onclick = function() {
     document.getElementById('totpModal').style.display = 'none';
 };
+
 // Copy secret button handler
 document.addEventListener('click', (e) => {
     if (e.target && e.target.id === 'copySecretBtn') {
