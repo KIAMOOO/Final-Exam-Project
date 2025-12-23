@@ -8,7 +8,8 @@ A comprehensive cryptographic toolkit providing secure messaging, file encryptio
 - Secure user registration with Argon2id password hashing
 - Multi-factor authentication with TOTP
 - Session management with HMAC-SHA256 tokens
-- Password reset and account lockout protection
+- Password reset via email (Mailjet SMTP)
+- Account lockout protection
 
 ### 💬 Secure Messaging
 - End-to-end encryption using ECDH key exchange
@@ -103,6 +104,32 @@ cryptovault/
 └── README.md
 ```
 
+## Password Reset Setup
+
+To enable password reset via email, configure SMTP settings (Mailjet) as environment variables.
+
+Windows:
+```bash
+$env:SMTP_SERVER = "in-v3.mailjet.com"
+$env:SMTP_PORT = "587"
+$env:SMTP_USERNAME = "3c024e09bddbff15041d632939f21774"
+$env:SMTP_PASSWORD = "b1738fe033fb4e369b8b13f0ebe26e05"
+$env:FROM_EMAIL = "Ocean.spongeh@gmail.com"
+```
+macOS / Linux:
+```bash
+export SMTP_SERVER="in-v3.mailjet.com"
+export SMTP_PORT="587"
+export SMTP_USERNAME="3c024e09bddbff15041d632939f21774"
+export SMTP_PASSWORD="b1738fe033fb4e369b8b13f0ebe26e05"
+export FROM_EMAIL="Ocean.spongeh@gmail.com"
+```
+
+Then run the application:
+
+```bash
+python src/main.py
+```
 
 ## Security
 
@@ -295,6 +322,7 @@ supported file encryption logic, helped with auth integration and testing, added
 
 Arsen (Role — Blockchain & Integration Lead): Built blockchain/Merkle/audit logging, drove file encryption module, 
 integrated modules end-to-end, strengthened tests, and produced documentation.
+
 
 
 
