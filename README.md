@@ -53,20 +53,56 @@ vault = CryptoVault()
 token = vault.login("username", "password", "totp_code")
 ```
 
-## Project Structure
+
+### Project Structure
 
 ```
 cryptovault/
 ├── src/
-│   ├── auth/          # Authentication module
-│   ├── messaging/     # Secure messaging module
-│   ├── files/         # File encryption module
-│   ├── blockchain/    # Blockchain ledger module
-│   ├── crypto/        # Core crypto implementations
-│   └── web/           # Web interface
-├── tests/             # Test suite
+│   ├── __init__.py
+│   ├── main.py                 # Entry point
+│   ├── cryptovault.py         # Main integration class
+│   ├── auth/                   # Authentication module
+│   │   ├── __init__.py
+│   │   ├── models.py          # Database models
+│   │   ├── registration.py    # User registration
+│   │   ├── login.py           # Login & sessions
+│   │   └── totp.py            # TOTP implementation
+│   ├── messaging/              # Secure messaging
+│   │   ├── __init__.py
+│   │   └── messaging.py      # ECDH + AES-256-GCM
+│   ├── files/                  # File encryption
+│   │   ├── __init__.py
+│   │   └── file_encryption.py # AES-256-GCM + PBKDF2
+│   ├── blockchain/             # Blockchain ledger
+│   │   ├── __init__.py
+│   │   ├── blockchain.py      # Block & chain logic
+│   │   └── merkle.py          # Merkle tree
+│   ├── crypto/                 # Core crypto (from scratch)
+│   │   ├── __init__.py
+│   │   ├── sha256.py          # SHA-256 implementation
+│   │   ├── classical.py       # Caesar & Vigenère
+│   │   ├── rsa.py             # RSA key generation
+│   │   └── aes_expansion.py   # AES key expansion
+│   └── web/                    # Web interface
+│       ├── __init__.py
+│       ├── app.py             # Flask application
+│       ├── templates/         # HTML templates
+│       └── static/            # CSS & JS
+│           ├── css/
+│           └── js/
+├── tests/                      # Test suite
+│   ├── __init__.py
+│   ├── test_crypto.py
+│   ├── test_auth.py
+│   └── test_blockchain.py
+├── requirements.txt            # Dependencies
+├── setup.py                    # Package setup
+├── pytest.ini                  # Pytest configuration
+├── .gitignore
 └── README.md
 ```
+
 
 ## Security
 
@@ -242,58 +278,19 @@ pytest tests/test_blockchain.py # Blockchain tests
 
 ## Development
 
-### Project Structure
-
-```
-cryptovault/
-├── src/
-│   ├── __init__.py
-│   ├── main.py                 # Entry point
-│   ├── cryptovault.py         # Main integration class
-│   ├── auth/                   # Authentication module
-│   │   ├── __init__.py
-│   │   ├── models.py          # Database models
-│   │   ├── registration.py    # User registration
-│   │   ├── login.py           # Login & sessions
-│   │   └── totp.py            # TOTP implementation
-│   ├── messaging/              # Secure messaging
-│   │   ├── __init__.py
-│   │   └── messaging.py      # ECDH + AES-256-GCM
-│   ├── files/                  # File encryption
-│   │   ├── __init__.py
-│   │   └── file_encryption.py # AES-256-GCM + PBKDF2
-│   ├── blockchain/             # Blockchain ledger
-│   │   ├── __init__.py
-│   │   ├── blockchain.py      # Block & chain logic
-│   │   └── merkle.py          # Merkle tree
-│   ├── crypto/                 # Core crypto (from scratch)
-│   │   ├── __init__.py
-│   │   ├── sha256.py          # SHA-256 implementation
-│   │   ├── classical.py       # Caesar & Vigenère
-│   │   ├── rsa.py             # RSA key generation
-│   │   └── aes_expansion.py   # AES key expansion
-│   └── web/                    # Web interface
-│       ├── __init__.py
-│       ├── app.py             # Flask application
-│       ├── templates/         # HTML templates
-│       └── static/            # CSS & JS
-│           ├── css/
-│           └── js/
-├── tests/                      # Test suite
-│   ├── __init__.py
-│   ├── test_crypto.py
-│   ├── test_auth.py
-│   └── test_blockchain.py
-├── requirements.txt            # Dependencies
-├── setup.py                    # Package setup
-├── pytest.ini                  # Pytest configuration
-├── .gitignore
-└── README.md
-```
 
 ## License
 
 MIT License
+
+## Contribution
+
+Aidos (Role — Auth & Security Lead): Built authentication (Argon2/TOTP), set secure coding patterns, 
+reviewed code for vulns, contributed to messaging glue and tests, wrote security notes/docs.
+Adil (Role — Crypto & Messaging Lead): Implemented crypto/messaging flows (ECDH/ECDSA/AES-GCM/HKDF), maintained key management, 
+supported file encryption logic, helped with auth integration and testing, added docs.
+Arsen (Role — Blockchain & Integration Lead): Built blockchain/Merkle/audit logging, drove file encryption module, 
+integrated modules end-to-end, strengthened tests, and produced documentation.
 
 
 
