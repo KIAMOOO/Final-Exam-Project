@@ -32,12 +32,24 @@ async function loadAuditTrail() {
         if (data.success) {
             const trailDiv = document.getElementById('auditTrail');
             
+            let html = '';
+            
+            // Show pending transactions if any
+            if (data.pending_transactions > 0) {
+                html += `<div class="block-card" style="opacity: 0.7; border: 2px dashed #666;">
+                    <div class="block-header">
+                        <h3>Pending Transactions</h3>
+                        <span style="color: orange;">${data.pending_transactions} transaction(s) waiting</span>
+                    </div>
+                    <p>These will be added to the next block when it's created.</p>
+                </div>`;
+            }
+            
             if (data.chain.length === 0) {
                 trailDiv.innerHTML = '<p>No blocks in chain yet.</p>';
                 return;
             }
             
-            let html = '';
             data.chain.forEach((block, index) => {
                 html += `
                     <div class="block-card">
@@ -71,8 +83,23 @@ async function loadAuditTrail() {
     }
 }
 
-function verifyChain() {
-    alert('Chain verification: This would verify the entire blockchain integrity. Implementation in backend.');
+async function verifyChain() {
+    try {
+        const response = await fetch('/api/verify_chain');
+        const data = await response.json();
+        
+        if (data.success) {
+            if (data.valid) {
+                alert(`✅ Chain Verification Successful!\n\nChain Length: ${data.chain_length} blocks\nStatus: ${data.message}`);
+            } else {
+                alert(`❌ Chain Verification Failed!\n\n${data.message}\n\nThis indicates the blockchain has been tampered with.`);
+            }
+        } else {
+            alert('Error: ' + (data.error || 'Failed to verify chain'));
+        }
+    } catch (error) {
+        alert('Error: Failed to verify chain - ' + error.message);
+    }
 }
 
 // Load on page load

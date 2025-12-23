@@ -107,12 +107,19 @@ class MerkleTree:
                 sibling_index = current_index - 1
                 position = 'left'
             
+            # Handle odd-numbered levels: if sibling doesn't exist, duplicate current node
+            if sibling_index >= len(level):
+                # Last node in odd-numbered level - use itself as sibling (duplicated)
+                sibling_index = current_index
+                # If we're even-indexed and at the end, we're the right node, sibling is left (duplicate)
+                if position == 'right':
+                    position = 'left'
+            
             # Add sibling to proof
-            if sibling_index < len(level):
-                proof.append({
-                    'hash': level[sibling_index],
-                    'position': position
-                })
+            proof.append({
+                'hash': level[sibling_index],
+                'position': position
+            })
             
             # Move to parent level
             current_index = current_index // 2

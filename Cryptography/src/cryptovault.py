@@ -41,14 +41,14 @@ class CryptoVault:
         self.email_service = EmailService()
         self.ledger = BlockchainModule(difficulty=difficulty)
     
-    def register(self, username: str, password: str, email: str = None) -> Tuple[bool, Optional[str]]:
+    def register(self, username: str, password: str, email: str) -> Tuple[bool, Optional[str]]:
         """
         Register a new user.
         
         Args:
             username: Desired username
             password: Password
-            email: Optional email
+            email: Email address (required)
             
         Returns:
             Tuple (success, error_message)
@@ -425,6 +425,15 @@ class CryptoVault:
             List of all blocks
         """
         return self.ledger.get_chain_data()
+    
+    def verify_chain_integrity(self) -> bool:
+        """
+        Verify blockchain integrity.
+        
+        Returns:
+            True if chain is valid, False otherwise
+        """
+        return self.ledger.verify_chain()
     
     def _hash_username(self, username: str) -> str:
         """Hash username for privacy"""

@@ -15,8 +15,8 @@
                 <input type="text" id="username" name="username" required minlength="3" maxlength="20">
             </div>
             <div class="form-group">
-                <label for="email"><i class="fas fa-envelope"></i> Email (Optional)</label>
-                <input type="email" id="email" name="email">
+                <label for="email"><i class="fas fa-envelope"></i> Email</label>
+                <input type="email" id="email" name="email" required>
             </div>
             <div class="form-group">
                 <label for="password"><i class="fas fa-lock"></i> Password</label>
@@ -82,9 +82,15 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
     }
     
+    const email = document.getElementById('email').value.trim();
+    if (!email) {
+        errorDiv.textContent = 'Email is required';
+        return;
+    }
+    
     const formData = {
         username: document.getElementById('username').value,
-        email: document.getElementById('email').value || null,
+        email: email,
         password: password
     };
     

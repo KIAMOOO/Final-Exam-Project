@@ -99,14 +99,14 @@ class Registration:
         
         return password_hash, salt
     
-    def register_user(self, username: str, password: str, email: str = None) -> Tuple[bool, Optional[str], Optional[User]]:
+    def register_user(self, username: str, password: str, email: str) -> Tuple[bool, Optional[str], Optional[User]]:
         """
         Register a new user.
         
         Args:
             username: Desired username
             password: Plaintext password
-            email: Optional email address
+            email: Email address (required)
             
         Returns:
             Tuple (success, error_message, user_object)
@@ -125,12 +125,19 @@ class Registration:
         if not is_valid:
             return False, error, None
         
-        # Check email if provided
-        if email:
-            if User.query.filter_by(email=email).first():
-                return False, "Email already registered", None
-            if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
-                return False, "Invalid email format", None
+        # Validate email is provided
+        if not email or not email.strip():
+            return False, "Email is required", None
+        
+        email = email.strip()
+        
+        # Validate email format
+        if not re.match(r'^[^@]+@[^@]+\.[^@]+$', email):
+            return False, "Invalid email format", None
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            return False, "Email already registered", None
         
         try:
             # Hash password

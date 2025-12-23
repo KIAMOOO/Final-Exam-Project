@@ -305,8 +305,9 @@ class BlockchainModule:
         
         self.add_transaction(transaction)
         
-        # Auto-mine block if we have enough transactions (or after timeout)
-        if len(self.pending_transactions) >= 10:
+        # Auto-mine block if we have enough transactions
+        # Changed to 1 so blocks are created immediately for demo purposes
+        if len(self.pending_transactions) >= 1:
             self.create_block()
     
     def get_chain_data(self) -> List[dict]:

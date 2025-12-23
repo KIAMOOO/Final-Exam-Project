@@ -62,9 +62,17 @@ def register():
     """User registration"""
     if request.method == 'POST':
         data = request.get_json()
-        username = data.get('username', '')
+        username = data.get('username', '').strip()
         password = data.get('password', '')
-        email = data.get('email', '')
+        email = data.get('email', '').strip()
+        
+        # Validate required fields
+        if not username:
+            return jsonify({'success': False, 'error': 'Username is required'}), 400
+        if not password:
+            return jsonify({'success': False, 'error': 'Password is required'}), 400
+        if not email:
+            return jsonify({'success': False, 'error': 'Email is required'}), 400
         
         success, error = vault.register(username, password, email)
         
@@ -551,7 +559,34 @@ def get_audit_trail():
         return jsonify({'success': False, 'error': 'Invalid session'}), 401
     
     chain = vault.get_audit_trail()
-    return jsonify({'success': True, 'chain': chain})
+    pending_count = len(vault.ledger.pending_transactions)
+    return jsonify({
+        'success': True, 
+        'chain': chain,
+        'pending_transactions': pending_count
+    })
+
+
+@app.route('/api/verify_chain')
+def verify_chain():
+    """Verify blockchain integrity"""
+    token = session.get('token')
+    if not token:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+    
+    user = vault.auth_login.verify_session(token)
+    if not user:
+        return jsonify({'success': False, 'error': 'Invalid session'}), 401
+    
+    is_valid = vault.verify_chain_integrity()
+    chain_length = len(vault.ledger.chain)
+    
+    return jsonify({
+        'success': True,
+        'valid': is_valid,
+        'chain_length': chain_length,
+        'message': 'Chain is valid and untampered' if is_valid else 'Chain integrity check failed - tampering detected!'
+    })
 
 
 if __name__ == '__main__':
