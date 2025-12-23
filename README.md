@@ -287,10 +287,15 @@ MIT License
 
 Aidos (Role — Auth & Security Lead): Built authentication (Argon2/TOTP), set secure coding patterns, 
 reviewed code for vulns, contributed to messaging glue and tests, wrote security notes/docs.
+
+
 Adil (Role — Crypto & Messaging Lead): Implemented crypto/messaging flows (ECDH/ECDSA/AES-GCM/HKDF), maintained key management, 
 supported file encryption logic, helped with auth integration and testing, added docs.
+
+
 Arsen (Role — Blockchain & Integration Lead): Built blockchain/Merkle/audit logging, drove file encryption module, 
 integrated modules end-to-end, strengthened tests, and produced documentation.
+
 
 
 
