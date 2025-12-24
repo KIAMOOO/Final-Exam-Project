@@ -2,6 +2,13 @@
 Tests for blockchain module
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 import pytest
 from src.blockchain.blockchain import BlockchainModule, Transaction, Block
 import time
@@ -56,6 +63,18 @@ class TestBlockchain:
     def test_log_event(self):
         """Test event logging"""
         chain = BlockchainModule(difficulty=2)
+        initial_block_count = len(chain.chain)
         chain.log_event('TEST_EVENT', {'data': 'test'})
-        assert len(chain.pending_transactions) == 1
+        # log_event auto-mines blocks, so pending_transactions should be empty
+        # but a new block should have been created
+        assert len(chain.pending_transactions) == 0
+        assert len(chain.chain) == initial_block_count + 1
+        # Verify the event was logged in the latest block
+        latest_block = chain.get_latest_block()
+        assert len(latest_block.transactions) > 0
+        assert latest_block.transactions[-1].type == 'TEST_EVENT'
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
 

@@ -2,6 +2,13 @@
 Tests for authentication module
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 import pytest
 from src.auth.registration import Registration
 from src.auth.login import Login
@@ -93,4 +100,8 @@ class TestTOTP:
         codes = totp.generate_backup_codes()
         assert len(codes) == 10
         assert len(set(codes)) == 10  # All unique
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
 
